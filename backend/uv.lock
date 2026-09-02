@@ -247,7 +247,7 @@ wheels = [
 ]
 
 [[package]]
-name = "connector-hub-api"
+name = "connector-hub-backend"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [

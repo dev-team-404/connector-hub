@@ -5,10 +5,10 @@ Connector DB 의 alembic 마이그레이션. **AgentToolbox 의 alembic 과 완�
 `connectors` 를 포함한 11개 테이블을 이 저장소가 소유한다. AgentToolbox 의 `items`/`mcp_servers` 를 참조하는 FK 는 만들지 않는다.
 
 ```bash
-cd apps/api
+cd backend
 export DATABASE_URL=postgresql://<user>@localhost:5432/connector_hub
-uv run alembic -c ../../migrations/alembic.ini upgrade head
-uv run alembic -c ../../migrations/alembic.ini heads     # 항상 하나여야 한다
+uv run alembic -c ../migrations/alembic.ini upgrade head
+uv run alembic -c ../migrations/alembic.ini heads     # 항상 하나여야 한다
 ```
 
 ## 규칙

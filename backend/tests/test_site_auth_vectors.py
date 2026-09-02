@@ -6,7 +6,7 @@
 벡터의 `expect` 는 발급자의 모드별 판정인데, 소비자에게는 모드가 없다 — 비대칭 서명만 받는다.
 그래서 `asymmetric` 열만 읽는다. `hs256_legacy_valid` 가 그 차이를 드러낸다.
 
-단독 실행: `cd apps/api && uv run pytest tests/test_site_auth_vectors.py -q`
+단독 실행: `cd backend && uv run pytest tests/test_site_auth_vectors.py -q`
 """
 
 from __future__ import annotations
