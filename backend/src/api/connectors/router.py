@@ -21,7 +21,7 @@ from api.connectors.schemas import (
     SortKey,
     TagCount,
 )
-from api.deps import CurrentSessionDep, OptionalSessionDep  # noqa: TC001
+from api.deps import CurrentSessionDep, OptionalSessionDep, viewer_scope
 from api.rate_limit import probe_rate_limit
 from core.connectors import mutations, probes, queries
 from core.connectors.visibility import can_edit
@@ -42,10 +42,6 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["connectors"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-
-def _viewer(session: SiteSession | None) -> tuple[str | None, tuple[str, ...]]:
-    return (session.sub, session.team_codes) if session else (None, ())
 
 
 def _with_staleness(row: dict[str, object]) -> dict[str, object]:
@@ -115,7 +111,7 @@ async def list_connectors(
     limit: Annotated[int, Query(ge=1, le=queries.MAX_PAGE_SIZE)] = queries.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
 ) -> ConnectorPage:
-    viewer_id, teams = _viewer(viewer)
+    viewer_id, teams = viewer_scope(viewer)
     try:
         rows, next_cursor = await queries.list_connectors(
             db,
@@ -137,14 +133,14 @@ async def list_connectors(
 
 @router.get("/connectors/tags", response_model=list[TagCount], summary="태그 목록")
 async def list_tags(db: SessionDep, viewer: OptionalSessionDep) -> list[TagCount]:
-    viewer_id, teams = _viewer(viewer)
+    viewer_id, teams = viewer_scope(viewer)
     rows = await queries.list_tags(db, viewer_id=viewer_id, viewer_teams=teams)
     return [TagCount.model_validate(r) for r in rows]
 
 
 @router.get("/connectors/stats", response_model=CatalogStats, summary="카탈로그 지표")
 async def stats(db: SessionDep, viewer: OptionalSessionDep) -> CatalogStats:
-    viewer_id, teams = _viewer(viewer)
+    viewer_id, teams = viewer_scope(viewer)
     return CatalogStats.model_validate(
         await queries.catalog_stats(db, viewer_id=viewer_id, viewer_teams=teams)
     )
@@ -172,7 +168,7 @@ async def my_connectors(
 async def get_connector(
     connector_id: str, db: SessionDep, viewer: OptionalSessionDep
 ) -> ConnectorDetail:
-    viewer_id, teams = _viewer(viewer)
+    viewer_id, teams = viewer_scope(viewer)
     row = await queries.get_connector(
         db, connector_id=connector_id, viewer_id=viewer_id, viewer_teams=teams
     )
@@ -350,7 +346,7 @@ async def get_tools(
 
     가시성 게이트는 상세와 같다 — 보이지 않는 카드는 404 로 존재조차 알리지 않는다.
     """
-    viewer_id, teams = _viewer(viewer)
+    viewer_id, teams = viewer_scope(viewer)
     row = await queries.get_connector(
         db, connector_id=connector_id, viewer_id=viewer_id, viewer_teams=teams
     )

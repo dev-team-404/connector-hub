@@ -59,5 +59,14 @@ async def get_current_session(request: Request) -> SiteSession:
     return session
 
 
+def viewer_scope(session: SiteSession | None) -> tuple[str | None, tuple[str, ...]]:
+    """가시성 술어에 넣을 (사용자, 팀). 익명이면 (None, ()) — 전역 공개만 남는다.
+
+    라우터 둘이 같은 변환을 쓴다. 한쪽에만 두면 다른 쪽이 자기 버전을 만들고, 그러다
+    한 군데가 팀을 빠뜨리면 비공개 카드가 노출된다.
+    """
+    return (session.sub, session.team_codes) if session else (None, ())
+
+
 CurrentSessionDep = Annotated[SiteSession, Depends(get_current_session)]
 OptionalSessionDep = Annotated[SiteSession | None, Depends(get_optional_session)]

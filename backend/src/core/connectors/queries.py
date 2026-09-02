@@ -34,7 +34,14 @@ _SUMMARY_COLUMNS = """
     COALESCE(h.health_status, 'unknown') AS health_status, h.last_checked_at,
     c.created_at, c.updated_at,
     COALESCE(t.tags, ARRAY[]::text[]) AS tags,
-    COALESCE(s.star_count, 0) AS star_count
+    COALESCE(s.star_count, 0) AS star_count,
+    COALESCE(cc.comment_count, 0) AS comment_count,
+    -- 뷰어가 이미 눌렀는지. `(카드, 사용자)` PK 를 그대로 타는 조회라 카드마다 붙어도 싸다.
+    -- 익명이면 `:viewer_id` 가 빈 문자열이라 항상 false 다(visibility.viewer_params).
+    EXISTS (SELECT 1 FROM connector_stars vs
+            WHERE vs.connector_id = c.connector_id AND vs.user_id = :viewer_id) AS starred,
+    EXISTS (SELECT 1 FROM connector_bookmarks vb
+            WHERE vb.connector_id = c.connector_id AND vb.user_id = :viewer_id) AS bookmarked
 """
 
 # 태그와 별 개수는 상관 서브쿼리 대신 LATERAL 집계로 붙인다. 카드마다 서브쿼리를 도는 대신
@@ -50,6 +57,11 @@ _SUMMARY_JOINS = """
         SELECT count(*) AS star_count
         FROM connector_stars cs WHERE cs.connector_id = c.connector_id
     ) s ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT count(*) AS comment_count
+        FROM connector_comments cm
+        WHERE cm.connector_id = c.connector_id AND cm.deleted_at IS NULL
+    ) cc ON TRUE
 """
 
 SortKey = Literal["recent", "name"]
@@ -222,3 +234,32 @@ async def catalog_stats(
     )
     by_health = {r["health_status"]: r["n"] for r in rows}
     return {"total": sum(by_health.values()), "by_health": by_health}
+
+
+async def list_bookmarked(
+    session: AsyncSession,
+    *,
+    viewer_id: str,
+    viewer_teams: tuple[str, ...] | None,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
+    """뷰어가 북마크한 카드.
+
+    **가시성 술어를 그대로 통과시킨다.** 북마크한 뒤 카드가 팀 비공개로 바뀌었다면 더는
+    보이지 않아야 한다 — 북마크는 접근 권한이 아니라 표시다.
+    """
+    sql = f"""
+        SELECT {_SUMMARY_COLUMNS} {_SUMMARY_JOINS}
+        JOIN connector_bookmarks bm
+          ON bm.connector_id = c.connector_id AND bm.user_id = :viewer_id
+        WHERE c.archived_at IS NULL AND {VISIBLE_PREDICATE}
+        ORDER BY bm.created_at DESC, c.connector_id
+        LIMIT :limit OFFSET :offset
+    """
+    params = {
+        **viewer_params(viewer_id, viewer_teams),
+        "limit": max(1, min(limit, MAX_PAGE_SIZE)),
+        "offset": offset,
+    }
+    return [dict(r) for r in (await session.execute(text(sql), params)).mappings().all()]

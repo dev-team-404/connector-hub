@@ -95,6 +95,10 @@ class ConnectorSummary(BaseModel):
     health_stale: bool
     tags: list[str]
     star_count: int
+    comment_count: int
+    #: 뷰어 기준 상태. 익명이면 항상 false 다.
+    starred: bool
+    bookmarked: bool
     created_at: datetime
     updated_at: datetime
 
@@ -183,3 +187,81 @@ class ConnectorHealthResponse(BaseModel):
     last_checked_at: datetime | None = None
     stale: bool = False
     error: ProbeError | None = None
+
+
+# ---- 댓글 · 반응 · 알림 (connector-hub#4) --------------------------------------------------
+
+
+class CommentWrite(BaseModel):
+    body: Annotated[str, Field(min_length=1, max_length=10000)]
+    #: 답글이면 **최상위 댓글의** id. 답글에 답글은 받지 않는다(라우터가 거절).
+    parent_id: str | None = None
+
+    @field_validator("body")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("빈 댓글은 남길 수 없다")
+        return stripped
+
+
+class CommentEdit(BaseModel):
+    body: Annotated[str, Field(min_length=1, max_length=10000)]
+
+    @field_validator("body")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("빈 댓글은 남길 수 없다")
+        return stripped
+
+
+class Comment(BaseModel):
+    comment_id: str
+    parent_id: str | None
+    author_id: str
+    #: `connector_users` 는 표시용 projection 이라 비어 있을 수 있다. 그때는 화면이
+    #: `author_id` 로 대신 표시한다 — 이름이 없다고 댓글을 감추지는 않는다.
+    author_display_name: str | None
+    #: 삭제된 댓글은 None. 답글이 달려 있어 자리만 남긴 경우다.
+    body: str | None
+    deleted: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CommentThread(Comment):
+    replies: list[Comment] = []
+
+
+class CommentPage(BaseModel):
+    items: list[CommentThread]
+    #: **최상위 댓글** 총 개수. 답글까지 세면 "댓글 3개" 와 화면의 스레드 수가 어긋난다.
+    total: int
+
+
+class ReactionState(BaseModel):
+    """별·북마크의 현재 상태. 두 번 켜도 같은 응답이 온다."""
+
+    on: bool
+    count: int
+
+
+class Notification(BaseModel):
+    notification_id: str
+    connector_id: str | None
+    connector_short_id: str | None
+    connector_name: str | None
+    #: 열린 문자열이다. Literal 로 두면 이관해 온 낯선 종류가 500 을 낸다 — 모르는 종류는
+    #: 화면이 기본 문구로 렌더하는 편이 낫다.
+    kind: str
+    payload: dict[str, object]
+    read_at: datetime | None
+    created_at: datetime
+
+
+class NotificationPage(BaseModel):
+    items: list[Notification]
+    unread: int
