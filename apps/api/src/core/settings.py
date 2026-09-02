@@ -58,6 +58,15 @@ class Settings(BaseSettings):
         description="Site Auth 호출 타임아웃(초)",
     )
 
+    # --- 데이터베이스 ---------------------------------------------------------------------
+    # **AgentToolbox 와 다른 데이터베이스다.** 같은 인스턴스를 써도 상관없지만 같은 DB 를
+    # 가리키면 안 된다 — 스키마 소유권이 갈리는 것이 분리의 핵심이다.
+    database_url: str = Field(
+        default="",
+        alias="DATABASE_URL",
+        description="postgresql+asyncpg://... — 미설정이면 DB 를 쓰는 라우트가 503",
+    )
+
     # --- 게이트웨이 -----------------------------------------------------------------------
     # 외부 base path 는 계약상 고정이다(설계 §11). 값을 바꾸면 게이트웨이·Web base 와 어긋난다.
     api_base_path: str = Field(default="/connector/api/v1", alias="CONNECTOR_API_BASE_PATH")

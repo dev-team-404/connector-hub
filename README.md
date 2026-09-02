@@ -58,6 +58,15 @@ Web·API·Worker 는 같은 기능 변경에서 함께 바뀌는 하나의 bound
 
 ```bash
 cd apps/api && uv sync --extra dev
-uv run pytest -q
+uv run pytest -q                # DB 없는 테스트만
 uv run connector-hub-api        # 개발 서버
+```
+
+DB 를 쓰는 테스트는 실제 PostgreSQL 이 필요하다. CHECK 제약이 정말로 막는지는 DB 에 물어봐야 알 수 있어서 스텁으로 대체하지 않는다.
+
+```bash
+createdb connector_hub_test
+export DATABASE_URL=postgresql://<user>@localhost:5432/connector_hub_test
+uv run alembic -c ../../migrations/alembic.ini upgrade head
+CONNECTOR_TEST_DATABASE_URL=$DATABASE_URL uv run pytest -q
 ```

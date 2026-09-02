@@ -18,6 +18,9 @@ dependencies = [
   "pydantic-settings>=2.6",
   # 사이트 세션 JWT 검증 — 비대칭 서명(EdDSA/RS256)이라 crypto extra 가 필요하다.
   "pyjwt[crypto]>=2.9",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +29,8 @@ dev = [
   "pytest-asyncio>=0.24",
   "ruff>=0.7",
   "mypy>=1.13",
+  # alembic 의 sync 경로(마이그레이션 실행)용. 런타임은 asyncpg 를 쓴다.
+  "psycopg[binary]>=3.2",
 ]
 
 [project.scripts]
