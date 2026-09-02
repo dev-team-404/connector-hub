@@ -70,7 +70,7 @@ def _params(**over: object) -> dict[str, object]:
         "cid": str(uuid.uuid4()),
         "name": "c1",
         "endpoint": "https://mcp.test/sse",
-        "transport": "http",
+        "transport": "streamable_http",
         "scope_type": "team",
         "scope_id": "team-1",
         "verified": None,
@@ -112,7 +112,8 @@ async def test_supplied_uuid_is_preserved(session) -> None:
     assert got == cid
 
 
-@pytest.mark.parametrize("transport", ["stdio", "grpc", ""])
+# "http" 는 0001 이 쓰던 값이다 — 0002 가 어휘를 SDK·상류와 맞췄으므로 이제 거절돼야 한다.
+@pytest.mark.parametrize("transport", ["stdio", "grpc", "", "http"])
 async def test_transport_domain_rejects_non_remote(session, transport: str) -> None:
     """stdio 는 비목표다. 값을 받아 두면 '이미 데이터가 있으니' 로 지원 논의가 되살아난다."""
     with pytest.raises(IntegrityError):
@@ -122,7 +123,7 @@ async def test_transport_domain_rejects_non_remote(session, transport: str) -> N
 
 async def test_endpoint_anchor_blocks_a_card_nobody_can_use(session) -> None:
     with pytest.raises(IntegrityError):
-        await session.execute(_INSERT, _params(endpoint=None, transport="http"))
+        await session.execute(_INSERT, _params(endpoint=None, transport="streamable_http"))
         await session.commit()
 
 

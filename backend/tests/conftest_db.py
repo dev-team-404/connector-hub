@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import os
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -23,7 +23,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import AsyncIterator, Iterator
+
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 REQUIRES_DB = pytest.mark.skipif(
     not os.getenv("CONNECTOR_TEST_DATABASE_URL"),
@@ -70,9 +72,30 @@ class Viewer:
     role: str = "user"
 
 
+@asynccontextmanager
+async def worker_engine() -> AsyncIterator[AsyncEngine]:
+    """워커 테스트용 엔진. 클라이언트와 같은 이유로 풀을 두지 않는다."""
+    engine = create_async_engine(_async_url(), poolclass=NullPool)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
 @contextmanager
-def make_client(viewer: Viewer | None) -> Iterator[TestClient]:
-    """뷰어를 고정한 클라이언트. None 이면 익명."""
+def make_client(
+    viewer: Viewer | None,
+    *,
+    fetch_tools: object | None = None,
+    check_liveness: object | None = None,
+) -> Iterator[TestClient]:
+    """뷰어를 고정한 클라이언트. None 이면 익명.
+
+    **endpoint 프로브를 기본으로 막는다.** 등록 경로가 tools 를 자동으로 받아 오므로
+    그냥 두면 카탈로그 테스트가 `mcp.test` 로 실제 DNS 조회를 나간다 — 느려지는 것보다
+    나쁜 것은 결과가 그 환경의 resolver 에 달리게 되는 것이다. 프로브를 보는 테스트만
+    가짜를 넘겨 관찰한다.
+    """
     os.environ["DATABASE_URL"] = _raw_url()
 
     from fastapi import HTTPException
@@ -115,5 +138,26 @@ def make_client(viewer: Viewer | None) -> Iterator[TestClient]:
     app.dependency_overrides[get_current_session] = _required
     app.dependency_overrides[get_session] = _db
 
-    with TestClient(app) as client:
-        yield client
+    from api.connectors import router as router_mod
+
+    original = (router_mod.fetch_tools, router_mod.check_liveness)
+    router_mod.fetch_tools = fetch_tools or unreachable_fetch  # type: ignore[assignment]
+    router_mod.check_liveness = check_liveness or unhealthy_liveness  # type: ignore[assignment]
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        router_mod.fetch_tools, router_mod.check_liveness = original
+
+
+async def unreachable_fetch(url: str, transport: str, *, timeout: float = 0) -> object:
+    """네트워크를 타지 않고 즉시 실패하는 기본 프로브."""
+    from core.mcp.client import ConnectorUnreachableError, ProbeFailure
+
+    raise ConnectorUnreachableError(ProbeFailure.of("unreachable"), detail=f"fake {url}")
+
+
+async def unhealthy_liveness(url: str, transport: str, *, timeout: float = 0) -> object:
+    from core.mcp.client import Liveness, ProbeFailure
+
+    return Liveness(healthy=False, transport=None, failure=ProbeFailure.of("unreachable"))

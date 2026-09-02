@@ -36,10 +36,10 @@ AgentToolbox 에서 분리된 독립 서비스다. 사용자에게는 같은 사
 ## 구조
 
 ```
-backend/      Python 하나. FastAPI(api) + ARQ(worker) 가 core 를 공유한다
+backend/      Python 하나. FastAPI(api) + liveness 워커가 core 를 공유한다
   src/api/      /connector/api/v1/*
   src/core/     도메인·설정·DB·사이트 인증
-  src/worker/   liveness cron · tools 캐시 갱신
+  src/worker/   liveness 스윕 (브로커 없이 advisory lock 으로 단일 실행)
 frontend/     React SPA — Vite base /connector/
 migrations/   Connector DB alembic
 packages/
@@ -53,9 +53,11 @@ api 와 worker 를 한 Python 프로젝트에 두는 것은 둘이 도메인 코
 
 ## 현재 상태
 
-**scaffold 단계다.** 아직 Connector 도메인은 들어오지 않았다. 지금 있는 것은 저장소 뼈대와 **사이트 인증 계약의 소비자 구현**이다 — 분리에서 가장 위험한 부분이고, 계약이 실제로 동작하는지 먼저 확인해야 나머지를 그 위에 얹을 수 있다.
+백엔드가 서 있다 — 사이트 인증 계약의 소비자, 스키마 11테이블, 카탈로그·CRUD, MCP tools 미리보기·캐시와 liveness 워커까지. 남은 것은 댓글·반응, Web, import 도구, 배포다.
 
-다음 순서는 AgentToolbox 계획서의 P3-2(API·DB·Worker 이식) → P3-3(Web 이식) → P3-4(import 도구)다.
+**Connector 를 죽었다고 목록에서 치우지 않는다.** AgentToolbox 가 도입했다가 철회한 동작이다 — 소유자에게는 "등록한 게 사라졌다" 로만 보이고 사유를 화면에서 알 수 없으며, endpoint 가 되살아나도 스스로 복귀하지 못한다. 대신 **보이되 상태를 알린다**: 카드와 상세에 활성/비활성 배지를 띄우고, 마지막 확인이 오래됐으면 그것도 함께 표시한다.
+
+다음 순서는 AgentToolbox 계획서의 P3-3(Web 이식) → P3-4(import 도구)다.
 
 ## 개발
 
