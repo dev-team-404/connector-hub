@@ -31,7 +31,7 @@ _SUMMARY_COLUMNS = """
     c.connector_id::text AS connector_id, c.short_id, c.name, c.title,
     c.short_description, c.category, c.transport, c.endpoint_url,
     c.scope_type, c.scope_id, c.creator_user_id, c.verified_status,
-    COALESCE(h.health_status, 'unknown') AS health_status,
+    COALESCE(h.health_status, 'unknown') AS health_status, h.last_checked_at,
     c.created_at, c.updated_at,
     COALESCE(t.tags, ARRAY[]::text[]) AS tags,
     COALESCE(s.star_count, 0) AS star_count
@@ -173,7 +173,6 @@ async def get_connector(
         SELECT {_SUMMARY_COLUMNS},
                c.description, c.license, c.source_repo_url, c.compatible_hosts,
                tc.fetched_at AS tools_fetched_at, tc.fetch_error AS tools_fetch_error,
-               h.last_checked_at,
                COALESCE(vt.teams, ARRAY[]::text[]) AS visibility_teams
         {_SUMMARY_JOINS}
         LEFT JOIN connector_tools_cache tc ON tc.connector_id = c.connector_id

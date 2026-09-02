@@ -33,7 +33,7 @@ ConnectorHub — 사내 MCP 서버(Connector) 카탈로그. AgentToolbox 에서 
 backend/       Python 하나 — FastAPI(api) + ARQ(worker) 가 core 를 공유
   src/api/       /connector/api/v1
   src/core/      도메인·설정·DB·사이트 인증
-  src/worker/    liveness cron · tools 캐시 (P3-2 에서 들어온다)
+  src/worker/    liveness 스윕. 브로커 없이 advisory lock 으로 단일 실행
 frontend/      React SPA. Vite base /connector/ (P3-3 에서 들어온다)
 migrations/    Connector DB alembic
 packages/      api-client — backend 의 openapi.json 에서 생성

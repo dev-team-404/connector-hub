@@ -32,7 +32,7 @@ def _body(**over: object) -> dict[str, object]:
         "category": "productivity",
         "source_repo_url": "https://repo.test/mcp",
         "endpoint_url": "https://mcp.test/stream",
-        "transport": "http",
+        "transport": "streamable_http",
         "scope_type": "team",
         "scope_id": "team-a",
         "tags": ["mcp", "search"],
@@ -82,7 +82,7 @@ def test_anonymous_cannot_create() -> None:
     [
         ({"scope_type": "global", "scope_id": "team-a"}, "global 에 scope_id"),
         ({"scope_type": "team", "scope_id": None}, "team 인데 scope_id 없음"),
-        ({"transport": "http", "endpoint_url": None}, "transport 만 있고 주소 없음"),
+        ({"transport": "streamable_http", "endpoint_url": None}, "transport 만 있고 주소 없음"),
     ],
 )
 def test_inconsistent_body_is_422(over: dict, reason: str) -> None:

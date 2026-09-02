@@ -9,3 +9,20 @@ sys.path.insert(0, str(_ROOT / "src"))
 # 테스트 파일이 쓴다. conftest.py 하나에 다 넣으면 DB 가 필요 없는 테스트까지 그 import 를
 # 지나게 되므로 별도 모듈로 뒀다.
 sys.path.insert(0, str(_ROOT))
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _fresh_settings():
+    """설정 캐시를 테스트마다 비운다.
+
+    `load_settings` 는 프로세스 1회 평가라 `monkeypatch.setenv` 만으로는 안 바뀐다. 앞
+    테스트가 남긴 값이 뒤 테스트에 새는 것이 더 나쁜 쪽이라 양쪽에서 비운다.
+    """
+    from core.settings import load_settings
+
+    load_settings.cache_clear()
+    yield
+    load_settings.cache_clear()
