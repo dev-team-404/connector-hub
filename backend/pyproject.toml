@@ -24,6 +24,10 @@ dependencies = [
   "asyncpg>=0.30",
   "alembic>=1.14",
   "mcp>=2.0",
+  # 마이그레이션의 sync 경로. **런타임 의존성이다** — 배포 이미지 안에서 `alembic upgrade`
+  # 가 돌기 때문이다. dev extra 에 두면 `--no-dev` 로 빌드한 이미지의 migrate 잡이
+  # ModuleNotFoundError 로 죽고, 그 실패는 배포 때가 되어서야 드러난다.
+  "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]
@@ -32,8 +36,6 @@ dev = [
   "pytest-asyncio>=0.24",
   "ruff>=0.7",
   "mypy>=1.13",
-  # alembic 의 sync 경로(마이그레이션 실행)용. 런타임은 asyncpg 를 쓴다.
-  "psycopg[binary]>=3.2",
 ]
 
 [project.scripts]

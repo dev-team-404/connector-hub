@@ -1,0 +1,13 @@
+# 빌드 컨텍스트에서 뺄 것. `.venv` 가 들어가면 컨텍스트가 수백 MB 로 불어나고, 호스트에서
+# 빌드된 바이너리가 이미지 안으로 섞여 들어간다.
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.git
+.github
+frontend/node_modules
+frontend/dist
+docs

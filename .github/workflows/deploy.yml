@@ -1,0 +1,88 @@
+name: Deploy
+
+# 단일 호스트 compose 배포.
+#
+# - GHES 미러링 호환: **marketplace action 을 쓰지 않는다.** checkout + inline shell 만.
+# - 사내 전용 값(프록시·내부 IP·서비스 키)은 이 저장소에 두지 않는다. 그 값들은 배포
+#   브랜치의 실파일과 러너의 환경 변수로 들어온다. AgentToolbox 와 같은 방식이다.
+# - **환경 짝짓기**: dev 는 AgentToolbox dev 와, prod 는 prod 와만 붙는다. 근거와 지켜야
+#   할 값 목록은 docs/deployment.md 에 있다. 이 워크플로는 `environment` 로 그 한 벌을
+#   고를 뿐, 값을 여기 적지 않는다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "배포 대상"
+        type: choice
+        options: [dev, prod]
+        default: dev
+      reset_db:
+        description: "DB 볼륨 초기화 (마이그레이션 꼬임 복구용 — 데이터가 사라진다)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # 동시 배포 금지. 절반만 적용된 스택을 피한다 — 취소하지 않고 줄을 세운다.
+  group: deploy-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: compose up (${{ github.event.inputs.target }})
+    runs-on: ${{ fromJSON(vars.DEPLOY_RUNNER_LABELS || '["self-hosted"]') }}
+    environment: ${{ github.event.inputs.target }}
+    env:
+      # `up` 과 cleanup `down` 이 반드시 같은 프로젝트명을 쓰게 한 곳에서 정한다 —
+      # 어긋나면 낡은 컨테이너가 남아 새 스택과 포트를 다툰다.
+      COMPOSE_PROJECT: connector-hub-${{ github.event.inputs.target }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Reset workspace ownership
+        if: runner.environment == 'self-hosted'
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+      - uses: actions/checkout@v4
+
+      - name: Cleanup stale stack
+        env:
+          # 표현식을 run 에 직접 끼우면 expression injection 이다. env 로 바인딩한다.
+          RESET_DB: ${{ github.event.inputs.reset_db }}
+        run: |
+          set -euo pipefail
+          docker compose -p "$COMPOSE_PROJECT" down --remove-orphans 2>/dev/null || true
+          if [ "$RESET_DB" = "true" ]; then
+            docker compose -p "$COMPOSE_PROJECT" down -v --remove-orphans 2>/dev/null || true
+          fi
+
+      - name: Deploy
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # **환경 전용 키다.** dev 와 prod 가 같은 값을 쓰면 dev 유출이 곧 prod 접근이
+          # 된다 — 이 키 하나로 세션 조회와 팀 목록이 열린다.
+          SITE_AUTH_SERVICE_TOKEN: ${{ secrets.SITE_AUTH_SERVICE_TOKEN }}
+          SITE_AUTH_BASE_URL: ${{ vars.SITE_AUTH_BASE_URL }}
+          SITE_AUTH_ISSUER: ${{ vars.SITE_AUTH_ISSUER }}
+          CONNECTOR_ALLOWED_HOSTS: ${{ vars.CONNECTOR_ALLOWED_HOSTS }}
+          API_PORT: ${{ vars.API_PORT }}
+        run: |
+          set -euo pipefail
+          # migrate 잡이 실패하면 compose 가 api·worker 를 시작하지 않고 여기서 멈춘다
+          # (docker-compose.yml 의 service_completed_successfully 게이트).
+          docker compose -p "$COMPOSE_PROJECT" up -d --build --remove-orphans --wait
+
+      - name: Smoke
+        run: |
+          set -euo pipefail
+          # 게이트웨이 뒤가 아니라 컨테이너에 직접 묻는다 — 여기서 실패하면 원인이
+          # 이 스택이고, 여기서 통과하는데 `/connector/api/v1/health` 가 실패하면
+          # 원인은 게이트웨이 배선이다. 둘을 가르는 것이 이 단계의 목적이다.
+          docker compose -p "$COMPOSE_PROJECT" exec -T api \
+            python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read().decode())"
+
+      - name: Report
+        if: always()
+        run: docker compose -p "$COMPOSE_PROJECT" ps
