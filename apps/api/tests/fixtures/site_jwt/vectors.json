@@ -1,0 +1,195 @@
+{
+  "$comment": [
+    "사이트 세션 JWT 검증 계약 테스트 벡터 (#2940).",
+    "AgentToolbox 와 ConnectorHub 가 같은 파일을 읽어 동일하게 검증해야 한다.",
+    "토큰도 키도 굽지 않는다 — 토큰을 구우면 valid 케이스가 언젠가 만료되고, 키를 구우면",
+    "저장소에 개인키 PEM 이 남는다. 소비하는 쪽이 keys 의 역할마다 키를 하나씩 만들고",
+    "cases 대로 서명한 뒤 expect 를 모드별로 대조한다."
+  ],
+  "issuer": "https://agent-factory.test",
+  "audience": "agent-factory-site",
+  "secret": "test-shared-secret-do-not-use-in-any-environment",
+  "keys": {
+    "active": {
+      "kid": "test-ed25519-1",
+      "alg": "EdDSA",
+      "role": "활성 서명 키. JWKS 에 실린다."
+    },
+    "rotated": {
+      "kid": "test-ed25519-0",
+      "alg": "EdDSA",
+      "role": "교체 중 검증 전용. JWKS 에 함께 실리되 서명에는 쓰지 않는다."
+    },
+    "unknown": {
+      "kid": "test-ed25519-x",
+      "alg": "EdDSA",
+      "role": "JWKS 에 없는 키. 설정에 넣지 않는다."
+    },
+    "rsa": {
+      "kid": "test-rsa-1",
+      "alg": "RS256",
+      "role": "허용 알고리즘이지만 설정에 없는 키."
+    }
+  },
+  "cases": [
+    {
+      "name": "asymmetric_valid",
+      "why": "활성 키로 서명한 정상 토큰. 비대칭을 받는 모드에서만 통과한다.",
+      "build": {
+        "sign": "active"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "accept",
+        "asymmetric": "accept"
+      }
+    },
+    {
+      "name": "hs256_legacy_valid",
+      "why": "전환 전에 발급된 HS256 토큰. dual 이 이것을 받아야 전환이 강제 로그아웃이 되지 않는다.",
+      "build": {
+        "sign": "hs256",
+        "omit": [
+          "aud"
+        ]
+      },
+      "expect": {
+        "hs256": "accept",
+        "dual": "accept",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "rotated_key_valid",
+      "why": "교체 중 구 kid 로 서명된 토큰. 검증 전용 키로 계속 통과해야 한다.",
+      "build": {
+        "sign": "rotated"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "accept",
+        "asymmetric": "accept"
+      }
+    },
+    {
+      "name": "tampered_signature",
+      "why": "본문은 그대로 두고 서명 마지막 글자를 바꾼다.",
+      "build": {
+        "sign": "active",
+        "tamper_signature": true
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "expired",
+      "why": "exp 가 과거. 시계와 무관하게 항상 만료다.",
+      "build": {
+        "sign": "active",
+        "iat_offset_sec": -7200,
+        "exp_offset_sec": -3600
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "wrong_issuer",
+      "why": "다른 발급자가 낸 토큰.",
+      "build": {
+        "sign": "active",
+        "claims": {
+          "iss": "https://evil.test"
+        }
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "wrong_audience",
+      "why": "다른 서비스를 대상으로 발급된 토큰. audience 별 토큰으로 넘어갈 때의 방어선이다.",
+      "build": {
+        "sign": "active",
+        "claims": {
+          "aud": "some-other-service"
+        }
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "missing_audience",
+      "why": "비대칭 토큰인데 aud 가 없다. 비대칭 경로는 aud 를 요구한다.",
+      "build": {
+        "sign": "active",
+        "omit": [
+          "aud"
+        ]
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "unknown_kid",
+      "why": "JWKS 에 없는 kid. 소비자가 모르는 키는 검증을 시도조차 하지 않는다.",
+      "build": {
+        "sign": "unknown"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "alg_none",
+      "why": "서명 없는 토큰. 허용 목록은 모드가 정하므로 어디에도 없다.",
+      "build": {
+        "sign": "none"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "hs256_forged_with_public_key",
+      "why": "공개키를 HS256 비밀로 써서 서명한 위조. 헤더 alg 가 검증 키를 고르게 두면 통과하는 고전적 함정이다.",
+      "build": {
+        "sign": "hs256_with_public_key"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    },
+    {
+      "name": "rsa_signed_unknown_kid",
+      "why": "허용 알고리즘이라도 kid 를 모르면 거절한다.",
+      "build": {
+        "sign": "rsa"
+      },
+      "expect": {
+        "hs256": "reject",
+        "dual": "reject",
+        "asymmetric": "reject"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+dist/
+
+# uv.lock 은 커밋한다 — CI 와 로컬이 같은 의존성 그래프를 쓰게 하려는 것이고,
+# AgentToolbox `apps/server/uv.lock` 도 같은 규칙이다.

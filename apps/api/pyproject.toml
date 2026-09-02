@@ -1,0 +1,66 @@
+# ConnectorHub API — FastAPI. worker 와 web 은 형제 디렉터리이며 별도 이미지로 빌드한다.
+# AgentToolbox `apps/server` 의 도구 선택(uv · ruff · pytest)을 그대로 따른다 — 같은 사람이
+# 양쪽을 오가므로 설정이 다르면 그 차이 자체가 실수의 원인이 된다.
+
+[project]
+name = "connector-hub-api"
+version = "0.0.0"
+description = "ConnectorHub API — 사내 MCP 서버 카탈로그"
+requires-python = ">=3.13"
+readme = "README.md"
+license = { text = "Proprietary" }
+
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "httpx>=0.28",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  # 사이트 세션 JWT 검증 — 비대칭 서명(EdDSA/RS256)이라 crypto extra 가 필요하다.
+  "pyjwt[crypto]>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.7",
+  "mypy>=1.13",
+]
+
+[project.scripts]
+connector-hub-api = "api.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api", "src/core"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "TCH", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "api"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]

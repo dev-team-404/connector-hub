@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: typecheck
+        run: uv run mypy src
+      - name: test
+        run: uv run pytest -q
+
+  contract-drift:
+    # 계약 벡터는 AgentToolbox 가 정본이다. 사본이 낡으면 "우리 구현에 맞춘 벡터" 가 되어
+    # 계약으로서의 의미가 사라지므로, 갈라졌는지 여기서 알린다.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: 정본과 대조
+        run: |
+          curl -fsSL -o /tmp/upstream.json \
+            https://raw.githubusercontent.com/dev-team-404/AgentToolbox/main/apps/server/tests/fixtures/site_jwt/vectors.json
+          if diff -q /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json; then
+            echo "계약 벡터 일치"
+          else
+            echo "::warning::계약 벡터가 AgentToolbox 정본과 다르다. 정본을 먼저 확인하고 사본을 갱신할 것."
+            diff /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json || true
+          fi
