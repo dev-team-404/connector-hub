@@ -61,15 +61,31 @@ jobs:
   contract-drift:
     # 계약 벡터는 AgentToolbox 가 정본이다. 사본이 낡으면 "우리 구현에 맞춘 벡터" 가 되어
     # 계약으로서의 의미가 사라지므로, 갈라졌는지 여기서 알린다.
+    #
+    # AgentToolbox 는 private 이라 기본 GITHUB_TOKEN 으로는 읽지 못한다(그 토큰의 권한은
+    # 이 저장소로 한정된다). 두 저장소를 함께 읽는 토큰을 `UPSTREAM_READ_TOKEN` 시크릿으로
+    # 넣으면 대조가 켜지고, 없으면 **조용히 건너뛴다**.
+    #
+    # 받지 못한 것을 실패로 만들지 않는 이유: 매 PR 에 빨간 X 가 뜨면 사람이 CI 를 무시하게
+    # 되고, 그러면 정작 진짜 드리프트가 났을 때도 지나친다. 확인 불가와 불일치는 다른 상태다.
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: 정본과 대조
+        env:
+          UPSTREAM_READ_TOKEN: ${{ secrets.UPSTREAM_READ_TOKEN }}
         run: |
-          curl -fsSL -o /tmp/upstream.json \
-            https://raw.githubusercontent.com/dev-team-404/AgentToolbox/main/apps/server/tests/fixtures/site_jwt/vectors.json
-          if diff -q /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json; then
+          if [ -z "$UPSTREAM_READ_TOKEN" ]; then
+            echo "::notice::UPSTREAM_READ_TOKEN 미설정 — 계약 벡터 대조를 건너뛴다."
+            exit 0
+          fi
+          if ! curl -fsSL -H "Authorization: Bearer $UPSTREAM_READ_TOKEN" \
+               -H "Accept: application/vnd.github.raw" -o /tmp/upstream.json \
+               https://api.github.com/repos/dev-team-404/AgentToolbox/contents/apps/server/tests/fixtures/site_jwt/vectors.json?ref=main; then
+            echo "::warning::정본을 받지 못했다(권한 또는 경로). 대조를 건너뛴다."
+            exit 0
+          fi
+          if diff -q /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json >/dev/null; then
             echo "계약 벡터 일치"
           else
             echo "::warning::계약 벡터가 AgentToolbox 정본과 다르다. 정본을 먼저 확인하고 사본을 갱신할 것."
