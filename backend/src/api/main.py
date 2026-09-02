@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 from api.connectors.router import router as connectors_router
+from api.connectors.social_router import router as social_router
 from api.deps import CurrentSessionDep  # noqa: TC001
+from api.notifications.router import router as notifications_router
 from core.settings import load_settings
 from core.site_auth import SiteAuthClient, build_http_client
 
@@ -80,6 +82,8 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(connectors_router)
+    app.include_router(social_router)
+    app.include_router(notifications_router)
     return app
 
 
