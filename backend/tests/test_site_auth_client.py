@@ -2,7 +2,7 @@
 
 계약 문서 §2.2(JWKS 캐시와 모르는 kid 재조회)·§4.1(introspection 캐시)을 코드로 고정한다.
 
-단독 실행: `cd apps/api && uv run pytest tests/test_site_auth_client.py -q`
+단독 실행: `cd backend && uv run pytest tests/test_site_auth_client.py -q`
 """
 
 from __future__ import annotations

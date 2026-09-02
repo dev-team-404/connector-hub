@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 
+from api.connectors.router import router as connectors_router
 from api.deps import CurrentSessionDep  # noqa: TC001
 from core.settings import load_settings
 from core.site_auth import SiteAuthClient, build_http_client
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
             "expires_at": session.expires_at,
         }
 
+    app.include_router(connectors_router)
     return app
 
 

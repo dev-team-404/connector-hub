@@ -17,7 +17,7 @@ ConnectorHub — 사내 MCP 서버(Connector) 카탈로그. AgentToolbox 에서 
 사이트 인증 계약의 정본은 AgentToolbox 의 [`docs/architecture/site-auth-contract.md`](https://github.com/dev-team-404/AgentToolbox/blob/main/docs/architecture/site-auth-contract.md) 다. 이 저장소는 **소비자**다.
 
 - 계약이 바뀌면 AgentToolbox 가 먼저 배포되고 이쪽이 뒤따른다.
-- `apps/api/tests/fixtures/site_jwt/vectors.json` 은 정본의 **사본**이다. 여기서 먼저 고치지 않는다 — 고치면 "우리 구현에 맞춘 벡터" 가 되어 계약으로서의 의미가 사라진다.
+- `backend/tests/fixtures/site_jwt/vectors.json` 은 정본의 **사본**이다. 여기서 먼저 고치지 않는다 — 고치면 "우리 구현에 맞춘 벡터" 가 되어 계약으로서의 의미가 사라진다.
 - CI 가 정본과 갈라졌는지 알리지만, AgentToolbox 가 private 이라 **`UPSTREAM_READ_TOKEN` 시크릿이 있을 때만** 동작한다. 없으면 건너뛴다. 즉 지금은 **사람이 챙겨야 하는 규칙**이다.
 
 ## 한 사람이 양쪽을 만들 때
@@ -30,15 +30,17 @@ ConnectorHub — 사내 MCP 서버(Connector) 카탈로그. AgentToolbox 에서 
 ## 구조와 명령
 
 ```
-apps/api/      FastAPI. 외부 base path 는 /connector/api/v1
-apps/worker/   liveness cron · tools 캐시 (P3-2 에서 들어온다)
-apps/web/      React SPA. Vite base /connector/ (P3-3 에서 들어온다)
-migrations/    Connector DB alembic (P3-2)
-packages/      api-client — apps/api 의 openapi.json 에서 생성
+backend/       Python 하나 — FastAPI(api) + ARQ(worker) 가 core 를 공유
+  src/api/       /connector/api/v1
+  src/core/      도메인·설정·DB·사이트 인증
+  src/worker/    liveness cron · tools 캐시 (P3-2 에서 들어온다)
+frontend/      React SPA. Vite base /connector/ (P3-3 에서 들어온다)
+migrations/    Connector DB alembic
+packages/      api-client — backend 의 openapi.json 에서 생성
 ```
 
 ```bash
-cd apps/api
+cd backend
 uv sync --extra dev
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src

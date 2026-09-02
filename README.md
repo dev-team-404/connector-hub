@@ -36,17 +36,20 @@ AgentToolbox 에서 분리된 독립 서비스다. 사용자에게는 같은 사
 ## 구조
 
 ```
-apps/
-  api/        FastAPI — /connector/api/v1/*
-  worker/     liveness cron · tools 캐시 갱신
-  web/        React SPA — Vite base /connector/
+backend/      Python 하나. FastAPI(api) + ARQ(worker) 가 core 를 공유한다
+  src/api/      /connector/api/v1/*
+  src/core/     도메인·설정·DB·사이트 인증
+  src/worker/   liveness cron · tools 캐시 갱신
+frontend/     React SPA — Vite base /connector/
 migrations/   Connector DB alembic
 packages/
-  api-client/ api 의 openapi.json 에서 생성 (code-first 단방향)
+  api-client/ backend 의 openapi.json 에서 생성 (code-first 단방향)
 docs/
 ```
 
-Web·API·Worker 는 같은 기능 변경에서 함께 바뀌는 하나의 bounded context 라 한 저장소에 둔다. 배포 이미지는 셋으로 나눈다.
+Web·API·Worker 는 같은 기능 변경에서 함께 바뀌는 하나의 bounded context 라 한 저장소에 둔다. **배포 이미지는 셋으로 나눈다** — 저장소가 하나인 것과 이미지가 하나인 것은 다르다.
+
+api 와 worker 를 한 Python 프로젝트에 두는 것은 둘이 도메인 코드를 공유하기 때문이다. AgentToolbox `apps/server` 도 같은 구조다(단일 프로젝트 + 다중 진입점).
 
 ## 현재 상태
 
@@ -57,7 +60,7 @@ Web·API·Worker 는 같은 기능 변경에서 함께 바뀌는 하나의 bound
 ## 개발
 
 ```bash
-cd apps/api && uv sync --extra dev
+cd backend && uv sync --extra dev
 uv run pytest -q                # DB 없는 테스트만
 uv run connector-hub-api        # 개발 서버
 ```
@@ -67,6 +70,6 @@ DB 를 쓰는 테스트는 실제 PostgreSQL 이 필요하다. CHECK 제약이 �
 ```bash
 createdb connector_hub_test
 export DATABASE_URL=postgresql://<user>@localhost:5432/connector_hub_test
-uv run alembic -c ../../migrations/alembic.ini upgrade head
+uv run alembic -c ../migrations/alembic.ini upgrade head
 CONNECTOR_TEST_DATABASE_URL=$DATABASE_URL uv run pytest -q
 ```

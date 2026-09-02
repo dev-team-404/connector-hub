@@ -1,6 +1,6 @@
 """앱 배선 — 헬스체크와 인증 게이트.
 
-단독 실행: `cd apps/api && uv run pytest tests/test_app_routes.py -q`
+단독 실행: `cd backend && uv run pytest tests/test_app_routes.py -q`
 """
 
 from __future__ import annotations

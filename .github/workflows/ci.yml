@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/api
+        working-directory: backend
     services:
       postgres:
         image: postgres:16
@@ -41,19 +41,19 @@ jobs:
         run: |
           uv run ruff check .
           uv run ruff format --check .
-          uv run ruff check ../../migrations
-          uv run ruff format --check ../../migrations
+          uv run ruff check ../migrations
+          uv run ruff format --check ../migrations
       - name: typecheck
         run: uv run mypy src
       - name: migrate
-        run: uv run alembic -c ../../migrations/alembic.ini upgrade head
+        run: uv run alembic -c ../migrations/alembic.ini upgrade head
       - name: 마이그레이션 되돌리기 왕복
         run: |
-          uv run alembic -c ../../migrations/alembic.ini downgrade base
-          uv run alembic -c ../../migrations/alembic.ini upgrade head
+          uv run alembic -c ../migrations/alembic.ini downgrade base
+          uv run alembic -c ../migrations/alembic.ini upgrade head
       - name: head 가 하나인지
         run: |
-          heads=$(uv run alembic -c ../../migrations/alembic.ini heads | grep -c '(head)')
+          heads=$(uv run alembic -c ../migrations/alembic.ini heads | grep -c '(head)')
           test "$heads" -eq 1 || { echo "alembic head 가 $heads 개다"; exit 1; }
       - name: test
         run: uv run pytest -q
@@ -85,9 +85,9 @@ jobs:
             echo "::warning::정본을 받지 못했다(권한 또는 경로). 대조를 건너뛴다."
             exit 0
           fi
-          if diff -q /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json >/dev/null; then
+          if diff -q /tmp/upstream.json backend/tests/fixtures/site_jwt/vectors.json >/dev/null; then
             echo "계약 벡터 일치"
           else
             echo "::warning::계약 벡터가 AgentToolbox 정본과 다르다. 정본을 먼저 확인하고 사본을 갱신할 것."
-            diff /tmp/upstream.json apps/api/tests/fixtures/site_jwt/vectors.json || true
+            diff /tmp/upstream.json backend/tests/fixtures/site_jwt/vectors.json || true
           fi
